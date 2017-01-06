@@ -1,3 +1,6 @@
+extern crate rustc_l10n;
+extern crate serde_json;
+
 use std::env;
 use std::ffi::OsStr;
 use std::process;
@@ -15,7 +18,7 @@ fn main() {
 #[derive(Debug)]
 struct RustcOutput {
     exit_code: i32,
-    errors: Vec<String>,
+    errors: Vec<rustc_l10n::spec::Diagnostic>,
 }
 
 
@@ -34,7 +37,9 @@ fn invoke_rustc<S: AsRef<OsStr>>(argv: &[S]) -> RustcOutput {
     let lines = stderr
         .split('\n')
         .filter(|s| !s.is_empty())
-        .map(|s| s.to_string())
+        .map(|s| serde_json::from_str(s))
+        .filter(|r| r.is_ok())
+        .map(|r| r.unwrap())
         .collect();
 
     RustcOutput {
