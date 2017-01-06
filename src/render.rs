@@ -57,13 +57,15 @@ impl spec::ErrorLevel {
     }
 
     fn output(&self, t: &mut Box<Terminal>) -> Result<()> {
-        write!(t, "{}", match *self {
-            spec::ErrorLevel::Ice => "error: internal compiler error",
-            spec::ErrorLevel::Error => "error",
-            spec::ErrorLevel::Warning => "warning",
-            spec::ErrorLevel::Note => "note",
-            spec::ErrorLevel::Help => "help",
-        })?;
+        write!(t,
+               "{}",
+               match *self {
+                   spec::ErrorLevel::Ice => "error: internal compiler error",
+                   spec::ErrorLevel::Error => "error",
+                   spec::ErrorLevel::Warning => "warning",
+                   spec::ErrorLevel::Note => "note",
+                   spec::ErrorLevel::Help => "help",
+               })?;
         t.reset()?;
 
         Ok(())
