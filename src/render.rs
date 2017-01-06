@@ -110,7 +110,12 @@ fn render_spans(diag: &spec::Diagnostic, t: &mut Box<Terminal>) -> Result<()> {
             lineno += 1;
         }
         render_lineno(LineNumberPrefix::Empty, lineno_width, t)?;
-        render_highlight(sp.column_start, sp.column_end, sp.is_primary, &sp.label, t)?;
+        render_highlight(diag.level,
+                         sp.column_start,
+                         sp.column_end,
+                         sp.is_primary,
+                         &sp.label,
+                         t)?;
     }
 
     // children are notes or helps in current rustc
@@ -179,7 +184,8 @@ fn render_lineno(x: LineNumberPrefix, width: usize, t: &mut Box<Terminal>) -> Re
     Ok(())
 }
 
-fn render_highlight<S: AsRef<str>>(col_start: usize,
+fn render_highlight<S: AsRef<str>>(level: spec::ErrorLevel,
+                                   col_start: usize,
                                    col_end: usize,
                                    is_primary: bool,
                                    text: &Option<S>,
@@ -190,12 +196,21 @@ fn render_highlight<S: AsRef<str>>(col_start: usize,
     for _ in 0..col_start {
         write!(t, " ")?;
     }
+
+    if is_primary {
+        level.set_attr(false, t)?;
+    } else {
+        t.attr(term::Attr::Bold)?;
+        t.fg(term::color::BLUE)?;
+    }
+
     for _ in col_start..col_end {
         write!(t, "{}", ch)?;
     }
     if let Some(ref text) = *text {
         writeln!(t, " {}", text.as_ref())?;
     }
+    t.reset()?;
 
     Ok(())
 }
