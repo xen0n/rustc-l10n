@@ -5,11 +5,16 @@ use std::env;
 use std::ffi::OsStr;
 use std::process;
 
+use rustc_l10n::render::Render;
+
 
 fn main() {
     let argv: Vec<_> = env::args_os().collect();
     let output = invoke_rustc(&argv);
-    println!("output = {:?}", output);
+
+    for e in &output.errors {
+        e.render();
+    }
 
     process::exit(output.exit_code);
 }
