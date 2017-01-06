@@ -28,12 +28,21 @@ Completed:
 
 * Parsing of `rustc` JSON output (specification directly taken from `rustc`)
 * Somewhat basic rendering of error messages and spans
+* Color output
 
 TODO:
 
 * Localization itself XD
-* Color output
 * Output of complex spans
+
+In actually implementing this, I realized the current compiler outputs are not
+properly "parametricized" for i18n -- that is, code snippets and other
+templating variables are directly formatted into the message string. Also
+not every error/warning is covered by diagnostic codes, so we currently can't
+do any better than matching on the hardcoded strings for these cases.
+
+Such fixes need to be authored and upstreamed, obviously; I'll (slowly) carry
+out the work, and update this document when finished.
 
 
 ## Why the name?
