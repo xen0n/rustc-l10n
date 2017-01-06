@@ -8,5 +8,7 @@ extern crate serde_derive;
 extern crate serde_json;
 
 pub mod errors;
+#[macro_use]
+mod macros;
 pub mod spec;
 pub mod render;

@@ -1,3 +1,5 @@
+use std::fmt;
+
 use super::spec;
 
 
@@ -23,6 +25,17 @@ impl Render for spec::Diagnostic {
     }
 }
 
+impl fmt::Display for spec::ErrorLevel {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f.write_str(match *self {
+            spec::ErrorLevel::Ice => "error: internal compiler error",
+            spec::ErrorLevel::Error => "error",
+            spec::ErrorLevel::Warning => "warning",
+            spec::ErrorLevel::Note => "note",
+            spec::ErrorLevel::Help => "help",
+        })
+    }
+}
 
 fn render_spans(diag: &spec::Diagnostic) {
     let sps = &diag.spans;
@@ -63,13 +76,14 @@ fn render_spans(diag: &spec::Diagnostic) {
 
     // children are notes or helps in current rustc
     for child_diag in &diag.children {
-        if child_diag.level == "note" || child_diag.level == "help" {
-            // print notes along with spans
-            render_lineno(LineNumberPrefix::Note, lineno_width);
-            print!("{}", child_diag.level);
-            println!(": {}", child_diag.message);
-        } else {
-            unimplemented!();
+        match child_diag.level {
+            spec::ErrorLevel::Note | spec::ErrorLevel::Help => {
+                // print notes along with spans
+                render_lineno(LineNumberPrefix::Note, lineno_width);
+                print!("{}", child_diag.level);
+                println!(": {}", child_diag.message);
+            }
+            _ => unimplemented!(),
         }
     }
 }

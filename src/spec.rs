@@ -3,13 +3,21 @@
 //! This is kept in sync with `libsyntax/json.rs`. Beware of any changes
 //! before stabilization!
 
+enum_str!(ErrorLevel {
+    Ice("error: internal compiler error"),
+    Error("error"),
+    Warning("warning"),
+    Note("note"),
+    Help("help"),
+});
+
 #[derive(Deserialize, Debug)]
 pub struct Diagnostic {
     /// The primary error message.
     pub message: String,
     pub code: Option<DiagnosticCode>,
     /// "error: internal compiler error", "error", "warning", "note", "help".
-    pub level: String,
+    pub level: ErrorLevel,
     pub spans: Vec<DiagnosticSpan>,
     /// Associated diagnostic messages.
     pub children: Vec<Diagnostic>,
