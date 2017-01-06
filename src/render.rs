@@ -57,6 +57,8 @@ fn render_spans(diag: &spec::Diagnostic) {
             println!("{}", line.text);
             lineno += 1;
         }
+        render_lineno(LineNumberPrefix::Empty, lineno_width);
+        render_highlight(sp.column_start, sp.column_end, sp.is_primary, &sp.label);
     }
 
     // children are notes or helps in current rustc
@@ -102,5 +104,22 @@ fn render_lineno(x: LineNumberPrefix, width: usize) {
             }
             print!(" {}", sep);
         }
+    }
+}
+
+fn render_highlight<S: AsRef<str>>(col_start: usize,
+                                   col_end: usize,
+                                   is_primary: bool,
+                                   text: &Option<S>) {
+    // TODO: multi-line spans
+    let ch = if is_primary { '^' } else { '-' };
+    for _ in 0..col_start {
+        print!(" ");
+    }
+    for _ in col_start..col_end {
+        print!("{}", ch);
+    }
+    if let Some(ref text) = *text {
+        println!(" {}", text.as_ref());
     }
 }
