@@ -73,18 +73,6 @@ impl spec::ErrorLevel {
 fn render_spans(diag: &spec::Diagnostic, t: &mut Box<Terminal>) -> Result<()> {
     let sps = &diag.spans;
 
-    // find primary span
-    let primary_sp = sps.iter().filter(|sp| sp.is_primary).take(1).next();
-    if let Some(sp) = primary_sp {
-        // print the leading line of spans
-        // ' --> {filename}:{start line}:{start column}
-        t.attr(term::Attr::Bold)?;
-        t.fg(term::color::BLUE)?;
-        write!(t, " --> ")?;
-        t.reset()?;
-        writeln!(t, "{}:{}:{}", sp.file_name, sp.line_start, sp.column_start)?;
-    }
-
     // sort the spans by starting line
     let sps = {
         let mut sps: Vec<_> = sps.iter().collect();
@@ -95,6 +83,19 @@ fn render_spans(diag: &spec::Diagnostic, t: &mut Box<Terminal>) -> Result<()> {
     // get maximum line number for left-padding the line numbers
     let max_lineno = sps[sps.len() - 1].line_start;
     let lineno_width = format!("{}", max_lineno).len();  // very crude but enough
+
+    {
+        // find primary span
+        let primary_sp = sps.iter().filter(|sp| sp.is_primary).take(1).next();
+
+        // print the leading line of spans
+        // '...  --> {filename}:{start line}:{start column}'
+        // '...   |'  -- arrow is aligned with the vertical column below
+        if let Some(sp) = primary_sp {
+            let lead_text = format!("{}:{}:{}", sp.file_name, sp.line_start, sp.column_start);
+            render_lineno(LineNumberPrefix::Leading(lead_text), lineno_width, t)?;
+        }
+    }
 
     // TODO: match rustc's behavior here!
     render_lineno(LineNumberPrefix::Empty, lineno_width, t)?;
@@ -129,6 +130,7 @@ fn render_spans(diag: &spec::Diagnostic, t: &mut Box<Terminal>) -> Result<()> {
 
 
 enum LineNumberPrefix {
+    Leading(String),
     Lineno(usize),
     Empty,
     Note,
@@ -148,6 +150,14 @@ fn render_lineno(x: LineNumberPrefix, width: usize, t: &mut Box<Terminal>) -> Re
                 write!(t, " ")?;
             }
             write!(t, "{} | ", lineno_str)?;
+        }
+        LineNumberPrefix::Leading(s) => {
+            for _ in 0..width {
+                write!(t, " ")?;
+            }
+            write!(t, "--> ")?;
+            t.reset()?;
+            writeln!(t, "{}", s)?;
         }
         LineNumberPrefix::Empty | LineNumberPrefix::Note => {
             let sep = match x {
