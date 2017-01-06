@@ -1,5 +1,6 @@
 extern crate rustc_l10n;
 extern crate serde_json;
+extern crate term;
 
 use std::env;
 use std::ffi::OsStr;
@@ -12,8 +13,10 @@ fn main() {
     let argv: Vec<_> = env::args_os().collect();
     let output = invoke_rustc(&argv);
 
+    let mut stderr = term::stderr().unwrap();
+
     for e in &output.errors {
-        e.render();
+        e.render(&mut stderr).unwrap();
     }
 
     process::exit(output.exit_code);

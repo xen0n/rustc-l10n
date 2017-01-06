@@ -1,43 +1,76 @@
-use std::fmt;
+use term::{self, StderrTerminal};
 
+use super::errors::*;
 use super::spec;
 
+type Terminal = StderrTerminal;
 
 pub trait Render {
-    fn render(&self);
+    fn render(&self, &mut Box<Terminal>) -> Result<()>;
 }
 
 
 impl Render for spec::Diagnostic {
-    fn render(&self) {
-        print!("{}", self.level);
+    fn render(&self, t: &mut Box<Terminal>) -> Result<()> {
+        self.level.set_attr(false, t)?;
+        self.level.output(t)?;
         if let Some(ref code) = self.code {
-            print!("[{}]", code.code);
+            self.level.set_attr(false, t)?;
+            write!(t, "[{}]", code.code)?;
         }
-        print!(": ");
-        println!("{}", self.message);
+        t.attr(term::Attr::Bold)?;
+        t.fg(term::color::WHITE)?;
+        writeln!(t, ": {}", self.message)?;
+        t.reset()?;
 
         if !self.spans.is_empty() {
-            render_spans(self);
+            render_spans(self, t)?;
         }
 
-        println!();
+        writeln!(t, "")?;
+
+        Ok(())
     }
 }
 
-impl fmt::Display for spec::ErrorLevel {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        f.write_str(match *self {
+impl spec::ErrorLevel {
+    fn set_attr(&self, in_span: bool, t: &mut Box<Terminal>) -> Result<()> {
+        t.attr(term::Attr::Bold)?;
+        match *self {
+            spec::ErrorLevel::Ice | spec::ErrorLevel::Error => {
+                t.fg(term::color::RED)?;
+            }
+            spec::ErrorLevel::Warning => t.fg(term::color::YELLOW)?,
+            spec::ErrorLevel::Note => {
+                t.fg(if in_span {
+                        term::color::WHITE
+                    } else {
+                        term::color::GREEN
+                    })?;
+            }
+            spec::ErrorLevel::Help => {
+                t.fg(term::color::WHITE)?;
+            }
+        }
+
+        Ok(())
+    }
+
+    fn output(&self, t: &mut Box<Terminal>) -> Result<()> {
+        write!(t, "{}", match *self {
             spec::ErrorLevel::Ice => "error: internal compiler error",
             spec::ErrorLevel::Error => "error",
             spec::ErrorLevel::Warning => "warning",
             spec::ErrorLevel::Note => "note",
             spec::ErrorLevel::Help => "help",
-        })
+        })?;
+        t.reset()?;
+
+        Ok(())
     }
 }
 
-fn render_spans(diag: &spec::Diagnostic) {
+fn render_spans(diag: &spec::Diagnostic, t: &mut Box<Terminal>) -> Result<()> {
     let sps = &diag.spans;
 
     // find primary span
@@ -45,8 +78,11 @@ fn render_spans(diag: &spec::Diagnostic) {
     if let Some(sp) = primary_sp {
         // print the leading line of spans
         // ' --> {filename}:{start line}:{start column}
-        print!(" --> ");
-        println!("{}:{}:{}", sp.file_name, sp.line_start, sp.column_start);
+        t.attr(term::Attr::Bold)?;
+        t.fg(term::color::BLUE)?;
+        write!(t, " --> ")?;
+        t.reset()?;
+        writeln!(t, "{}:{}:{}", sp.file_name, sp.line_start, sp.column_start)?;
     }
 
     // sort the spans by starting line
@@ -61,17 +97,17 @@ fn render_spans(diag: &spec::Diagnostic) {
     let lineno_width = format!("{}", max_lineno).len();  // very crude but enough
 
     // TODO: match rustc's behavior here!
-    render_lineno(LineNumberPrefix::Empty, lineno_width);
-    println!();
+    render_lineno(LineNumberPrefix::Empty, lineno_width, t)?;
+    writeln!(t, "")?;
     for sp in sps {
         let mut lineno = sp.line_start;
         for line in &sp.text {
-            render_lineno(LineNumberPrefix::Lineno(lineno), lineno_width);
-            println!("{}", line.text);
+            render_lineno(LineNumberPrefix::Lineno(lineno), lineno_width, t)?;
+            writeln!(t, "{}", line.text)?;
             lineno += 1;
         }
-        render_lineno(LineNumberPrefix::Empty, lineno_width);
-        render_highlight(sp.column_start, sp.column_end, sp.is_primary, &sp.label);
+        render_lineno(LineNumberPrefix::Empty, lineno_width, t)?;
+        render_highlight(sp.column_start, sp.column_end, sp.is_primary, &sp.label, t)?;
     }
 
     // children are notes or helps in current rustc
@@ -79,13 +115,16 @@ fn render_spans(diag: &spec::Diagnostic) {
         match child_diag.level {
             spec::ErrorLevel::Note | spec::ErrorLevel::Help => {
                 // print notes along with spans
-                render_lineno(LineNumberPrefix::Note, lineno_width);
-                print!("{}", child_diag.level);
-                println!(": {}", child_diag.message);
+                render_lineno(LineNumberPrefix::Note, lineno_width, t)?;
+                child_diag.level.set_attr(true, t)?;
+                child_diag.level.output(t)?;
+                writeln!(t, ": {}", child_diag.message)?;
             }
             _ => unimplemented!(),
         }
     }
+
+    Ok(())
 }
 
 
@@ -96,16 +135,19 @@ enum LineNumberPrefix {
 }
 
 
-fn render_lineno(x: LineNumberPrefix, width: usize) {
+fn render_lineno(x: LineNumberPrefix, width: usize, t: &mut Box<Terminal>) -> Result<()> {
+    t.attr(term::Attr::Bold)?;
+    t.fg(term::color::BLUE)?;
+
     match x {
         LineNumberPrefix::Lineno(x) => {
             // TODO: avoid allocation here
             let lineno_str = format!("{}", x);
             let pad_width = width - lineno_str.len();
             for _ in 0..pad_width {
-                print!(" ");
+                write!(t, " ")?;
             }
-            print!("{} | ", lineno_str);
+            write!(t, "{} | ", lineno_str)?;
         }
         LineNumberPrefix::Empty | LineNumberPrefix::Note => {
             let sep = match x {
@@ -114,26 +156,34 @@ fn render_lineno(x: LineNumberPrefix, width: usize) {
                 _ => unreachable!(),
             };
             for _ in 0..width {
-                print!(" ");
+                write!(t, " ")?;
             }
-            print!(" {}", sep);
+            write!(t, " {}", sep)?;
         }
     }
+
+    t.reset()?;
+
+    Ok(())
 }
 
 fn render_highlight<S: AsRef<str>>(col_start: usize,
                                    col_end: usize,
                                    is_primary: bool,
-                                   text: &Option<S>) {
+                                   text: &Option<S>,
+                                   t: &mut Box<Terminal>)
+                                   -> Result<()> {
     // TODO: multi-line spans
     let ch = if is_primary { '^' } else { '-' };
     for _ in 0..col_start {
-        print!(" ");
+        write!(t, " ")?;
     }
     for _ in col_start..col_end {
-        print!("{}", ch);
+        write!(t, "{}", ch)?;
     }
     if let Some(ref text) = *text {
-        println!(" {}", text.as_ref());
+        writeln!(t, " {}", text.as_ref())?;
     }
+
+    Ok(())
 }
